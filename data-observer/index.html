@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>数据侦测</title>
+  </head>
+  <body>
+    <div>
+      <label>输入数据：</label>
+      <input
+        id="input-content"
+        placeholder="请输入内容"
+        onchange="changeVal()"
+      />
+    </div>
+    <div><label>显示内容区域：</label><span id="output"></span></div>
+  </body>
+  <script src="./index.js" type="text/javascript"></script>
+  <script>
+    window.onload = function () {
+      var options = {
+        window,
+        data: {
+          content: "",
+        },
+      };
+      window.hvue = new window.HVue(options);
+      window.hvue.setWatcher("data.content", function (newVal) {
+        this.window.document.getElementById("output").innerText = newVal;
+        console.log("render");
+      });
+    };
+    function changeVal() {
+      window.hvue.options.data.content = document.getElementById(
+        "input-content"
+      ).value;
+    }
+  </script>
+</html>

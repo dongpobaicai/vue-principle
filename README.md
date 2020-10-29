@@ -2,6 +2,7 @@
 
 菜鸟的 vue 之路
 相关书籍：《深入浅出 vue.js》
+参考网址：https://ustbhuangyi.github.io/vue-analysis/v2/prepare/
 
 ### 前期准备工作
 
@@ -10,6 +11,15 @@
   这里选取了 web-full-cjs 编译参数，对应的编译文件 entry-runtime-with-compiler.js
 > vue是function导出的类
 > 初始化全局api
+
+#### 数据驱动
+> new Vue 到底发生了什么
+> mount
+> _render _update
+> render 通过createElement返回虚拟DOM
+> virtual DOM  定义了一个vnode类，减少操作DOM性能开销
+> createElement children规范化 VNode的创建
+> _update
 
 
 

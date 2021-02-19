@@ -449,46 +449,8 @@ function createAppAPI(render, hydrate) {
 }
 ```
 
-- 我们重点看下 mount 逻辑
-
-```js
-mount(rootContainer, isHydrate) {
-  if (!isMounted) {
-    const vnode = createVNode(rootComponent, rootProps);
-    // store app context on the root VNode.
-    // this will be set on the root instance on initial mount.
-    vnode.appContext = context;
-    // HMR root reload
-    {
-      context.reload = () => {
-        render(cloneVNode(vnode), rootContainer);
-      };
-    }
-    if (isHydrate && hydrate) {
-      hydrate(vnode, rootContainer);
-    } else {
-      render(vnode, rootContainer);
-    }
-    isMounted = true;
-    app._container = rootContainer;
-    rootContainer.__vue_app__ = app;
-    {
-      devtoolsInitApp(app, version);
-    }
-    return vnode.component.proxy;
-  } else {
-    warn(
-      `App has already been mounted.\n` +
-        `If you want to remount the same app, move your app creation logic ` +
-        `into a factory function and create fresh app instances for each ` +
-        `mount - e.g. \`const createMyApp = () => createApp(App)\``
-    );
-  }
-},
-```
-
-> 以上就是vue初始化部分，做个简单汇总
-> 通过createApp返回vue对象  
-> createApp => ensureRenderer => createRenderer => baseCreateRenderer => createAppAPI
-> 手写这一初始化过程  详见：exmaple/demo2.html
-> 自定义createRenderer 详见：exmaple/demo3-canvas.html
+- 以上就是 vue 初始化部分，做个简单汇总
+- 通过 createApp 返回 vue 对象
+- createApp => ensureRenderer => createRenderer => baseCreateRenderer => createAppAPI
+- 手写这一初始化过程 详见：exmaple/demo2.html
+- 自定义 createRenderer 详见：exmaple/demo3-canvas.html

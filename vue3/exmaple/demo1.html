@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>vue3初始化过程详解</title>
+</head>
+<body>
+  <div id="app">
+    {{ name }}
+    <com />
+  </div>
+  <script src="../vue.global.js"></script>
+  <script>
+    const { createApp } = Vue
+
+    const app = createApp({
+      data() {
+        return {
+          name: '数据绑定'
+        }
+      },
+      mounted() {
+        console.log('执行mounted')
+      }
+    });
+
+    app.component('com', {
+      template: '<div>组件</div>'
+    })
+    app.mount('#app')
+  </script>
+</body>
+</html>

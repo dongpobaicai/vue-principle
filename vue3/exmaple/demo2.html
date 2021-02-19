@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>vue3的createApp初始化过程</title>
+</head>
+<body>
+  <div id="app"></div>
+  <script>
+    const createAppAPI = function(render) {
+      return function(options) {
+        const app = {
+          mount(container) {
+            // 将虚拟dom，渲染成真实的dom
+            // vnode是递归子树 createVNode 生成的，这里写死一个简单vnode
+            const vnode = {
+              tag: 'h2',
+              props: null,
+              children: options.data().name
+            }
+            render(vnode, container)
+          }
+        }
+
+        return app
+      }
+    } 
+
+    // 3、createApp是由createAppAPI返回的
+    // 这里render是渲染函数
+    const createRenderer = function({ querySelector, createElement, insert }) {
+      const render = function(vnode, container) {
+        // 1、创建父节点
+        const parent = querySelector(container)
+        // 2、创建子节点
+        const child = createElement(vnode.tag)
+        // 处理属性
+        // 处理子对象
+        if (typeof vnode.children === 'string') {
+          child.innerText = vnode.children
+        } else {
+
+        }
+        // 3、将子节点添加到父节点
+        insert(child, parent)
+      }
+      return {
+        createApp: createAppAPI(render)
+      }
+    }
+
+    // 2、renderer是createRenderer函数返回的
+    const renderer = createRenderer({
+      querySelector(el) {
+        return document.querySelector(el)
+      },
+      createElement(tag) {
+        return document.createElement(tag)
+      },
+      insert(child, parent) {
+        return parent.appendChild(child)
+      }
+    })
+
+    // 1、声明createApp方法，createApp是render对象的方法
+    const Vue = {
+      createApp(options) {
+        return renderer.createApp(options)
+      }
+    }
+
+    Vue.createApp({
+      data() {
+        return {
+          name: 'bill'
+        }
+      }
+    }).mount('#app')
+  </script>
+</body>
+</html>

@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>数据响应式</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script>
+      // 将对象变得可观测
+      function defineReactive(obj) {
+        const pro = new Proxy(obj, {
+          // 这里定义属性描述
+          // 使用反射Reflect 避免无法监听某些异常情况
+          get(target, key) {
+            // 收集依赖
+            track(target, key);
+
+            // 这里需要递归代理
+            if (typeof target[key] === "object" && target[key] !== null) {
+              return defineReactive(target[key]);
+            }
+            return Reflect.get(target, key);
+          },
+          set(target, key, value) {
+            // 触发依赖
+            trigger(target, key)
+
+            return Reflect.set(target, key, value);
+          },
+          deleteProperty(target, key) {
+            return Reflect.deleteProperty(target, key);
+          },
+        });
+        return pro;
+      }
+
+      // 如何收集
+      let activeEffect;
+      const effectStack = [];
+      const targetMap = new WeakMap();
+
+      // 1、创建渲染effect
+      function createReactiveEffect(fn) {
+        const effect = function (args) {
+          // 执行回调函数
+          try {
+            effectStack.push(effect);
+            activeEffect = effect;
+            return fn(args);
+          } finally {
+            effectStack.pop();
+            activeEffect = effectStack[effectStack.length - 1];
+          }
+        };
+
+        effect.options = {}
+
+        return effect;
+      }
+      function setupRenderEffect(fn) {
+        const e = createReactiveEffect(fn);
+        // 2、立即执行effect
+        e();
+        return e;
+      }
+
+      // 依赖的数据结构  <WeakMap>(target, <Map>(key, <Set>deps))
+      function track(target, key) {
+        let depsMap = targetMap.get(target);
+
+        if (!depsMap) {
+          targetMap.set(target, (depsMap = new Map()));
+        }
+
+        let dep = depsMap.get(key);
+        if (!dep) {
+          depsMap.set(key, (dep = new Set()));
+        }
+
+        if (!dep.has(activeEffect)) {
+          dep.add(activeEffect);
+          // activeEffect.deps.push(dep);
+        }
+      }
+
+      // set, delete 执行trigger
+      // 1、根据各种类型操作，添加effect
+      // 2、执行effect，如果有onTrigger 执行，如果发现需要调度处理,放进scheduler事件调度
+
+      function trigger(target, key) {
+        let depsMap = targetMap.get(target);
+
+        const effects = new Set();
+        const add = function (effectsToAdd) {
+          if (effectsToAdd) {
+            effectsToAdd.forEach((effect) => {
+              if (effect !== activeEffect || effect.allowRecurse) {
+                effects.add(effect);
+              }
+            });
+          }
+        };
+        const run = function (effect) {
+          if (effect.options.onTrigger) {
+            effect.options.onTrigger();
+          }
+
+          if (effect.options.scheduler) {
+            effect.options.scheduler(effect);
+          } else {
+            effect();
+          }
+        };
+
+        add(depsMap.get(key));
+        effects.forEach(run);
+      }
+
+      // 渲染副作用，读取模板中用到真实值，从而触发get
+      const render = function () {
+        const el = '#app'
+        const parent = document.querySelector(el);
+
+        // 创建子元素
+        let child = document.querySelector("#child");
+
+        if (child) {
+          child.textContent = originData.a;
+        } else {
+          child = document.createElement("div");
+          child.id = "child";
+          child.textContent = originData.a;
+          parent.insertBefore(child, null);
+        }
+      };
+
+
+      const originData = defineReactive({
+        a: 1,
+        b: { name: "bill" },
+      })
+      setupRenderEffect(render);
+
+      window.setInterval(function() {
+        originData.a = '我的最新值为：' + Date.now()
+      }, 1000)
+    </script>
+  </body>
+</html>

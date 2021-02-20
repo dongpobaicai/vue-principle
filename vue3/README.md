@@ -454,3 +454,27 @@ function createAppAPI(render, hydrate) {
 - createApp => ensureRenderer => createRenderer => baseCreateRenderer => createAppAPI
 - 手写这一初始化过程 详见：exmaple/demo2.html
 - 自定义 createRenderer 详见：exmaple/demo3-canvas.html
+
+## 数据可观测
+
+### vue2通过Object.defineProperty()，存在以下缺点
+
+- 需要实现一个数据拦截方法defineReactive
+- 首次加载，需要遍历并递归所有的属性值，会消耗大量内存
+- 针对数组需要提供额外的拦截方法
+- es6新的数据结构无法监听，像set，map，symbol
+- 后面新增的属性和删除属性，需要额外api来完成
+
+### vue3使用Proxy完成数据的观测，有以下优点
+
+- 新增属性和删除属性都能监听
+- 可以代理任何对象
+- 数据拦截优化了，不需要全部遍历
+
+### vue3依赖收集
+
+1. 初始化阶段： 初始化阶段通过组件初始化方法形成对应的proxy对象，然后形成一个负责渲染的effect。
+2. get依赖收集阶段：通过解析template，替换真实data属性，来触发get,然后通过stack方法，通过proxy对象和key形成对应的deps，将负责渲染的effect存入deps。（这个过程还有其他的effect，比如watchEffect存入deps中 ）。
+3. set派发更新阶段：当我们 this[key] = value 改变属性的时候，首先通过trigger方法，通过proxy对象和key找到对应的deps，然后给deps分类分成computedRunners和effect,然后依次执行，如果需要调度的，直接放入调度。
+
+手写一个简单数据检测函数 详见：exmaple/demo4.html

@@ -8,7 +8,8 @@
 </head>
 <body>
   <div id="app">
-    {{ name }}
+    <p>{{ name }}</p>
+    <p>{{ name }}</p>
   </div>
   <script src="../vue.global.js"></script>
   <script>
@@ -22,6 +23,9 @@
       },
       mounted() {
         console.log('执行mounted')
+        window.setInterval(() => {
+        this.name = '我的最新值为：' + Date.now()
+      }, 1000)
       }
     });
 

@@ -1,12 +1,347 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Document</title>
-</head>
-<body>
-  
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>一个完整vue3轮子</title>
+    <style>
+      .red {
+        color: red;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div>目前支持多父组件，支持文本，标签元素创建</div>
+      <div>1、实现数据可监听</div>
+      <div>2、递归元素，获取subTree，进行渲染</div>
+    </div>
+    <script>
+      const effectStack = [];
+      const targetMap = new WeakMap()
+      let activeEffect = null
+
+      // 将对象变得可观测
+      function reactive(obj) {
+        const pro = new Proxy(obj, {
+          // 这里定义属性描述
+          // 使用反射Reflect 避免无法监听某些异常情况
+          get(target, key) {
+            // 收集依赖
+            track(target, key);
+
+            // 这里需要递归代理
+            if (typeof target[key] === "object" && target[key] !== null) {
+              return reactive(target[key]);
+            }
+            return Reflect.get(target, key);
+          },
+          set(target, key, value) {
+            // 触发依赖
+            const newTarget = { ...target }
+
+            newTarget[key] = value
+            trigger(target, key, newTarget);
+
+            return Reflect.set(target, key, value);
+          },
+          deleteProperty(target, key) {
+            return Reflect.deleteProperty(target, key);
+          },
+        });
+        return pro;
+      }
+
+      function effect(fn) {
+        // 1、添加到effectStack
+        // 2、执行回调函数
+        const componentEffect = function (ctx) {
+          try {
+            effectStack.push(componentEffect);
+            activeEffect = componentEffect
+            return fn(ctx);
+          } finally {
+            effectStack.pop(componentEffect);
+            activeEffect = effectStack[effectStack.length - 1];
+          }
+        };
+
+        componentEffect.options = {}
+        return componentEffect;
+      }
+
+      // 依赖的数据结构  <WeakMap>(target, <Map>(key, <Set>deps))
+      function track(target, key) {
+        let depsMap = targetMap.get(target);
+
+        if (!depsMap) {
+          targetMap.set(target, (depsMap = new Map()));
+        }
+
+        let dep = depsMap.get(key);
+        if (!dep) {
+          depsMap.set(key, (dep = new Set()));
+        }
+
+        if (!dep.has(activeEffect)) {
+          dep.add(activeEffect);
+        }
+      }
+
+      function trigger(target, key, newTarget) {
+        let depsMap = targetMap.get(target);
+
+        const effects = new Set();
+        const add = function (effectsToAdd) {
+          if (effectsToAdd) {
+            effectsToAdd.forEach((effect) => {
+              if (effect !== activeEffect || effect.allowRecurse) {
+                effects.add(effect);
+              }
+            });
+          }
+        };
+        const run = function (effect) {
+          if (effect.options.onTrigger) {
+            effect.options.onTrigger();
+          }
+
+          if (effect.options.scheduler) {
+            effect.options.scheduler(effect);
+          } else {
+            effect(newTarget);
+          }
+        };
+
+        add(depsMap.get(key));
+        effects.forEach(run);
+      }
+
+      const createAppAPI = function (render) {
+        return function (options) {
+          const app = {
+            // mount所做的事情
+            // 1、生成虚拟dom
+            // 2、将vnode渲染成真是dom
+            mount(container) {
+              // 这里通过程序一开始分析为component类型
+              const vnode = {
+                ...options,
+                type: "component",
+                el: null,
+                children: null,
+              };
+              render(vnode, document.querySelector(container));
+            },
+          };
+
+          return app;
+        };
+      };
+
+      // 3、createApp是由createAppAPI返回的
+      const createRenderer = function ({
+        querySelector,
+        createElement,
+        insert,
+        createTextNode,
+      }) {
+        const render = function (vnode, container) {
+          patch(container._vnode || null, vnode, container);
+          container._vnode = vnode;
+        };
+
+        const setupRenderEffect = function (instance, container) {
+          const e = effect(function (updateCtx) {
+            if (!instance.isMounted) {
+              // 递归，赋值获取它的subtree，触发track
+              instance.subTree = instance.render.call(instance.ctx);
+
+              patch(null, instance.subTree, container);
+              instance.isMounted = true;
+            } else {
+              // 更新
+              const nextTree = instance.render.call(updateCtx, true);
+              const prevTree = instance.subTree;
+              instance.subTree = nextTree;
+
+              patch(prevTree, nextTree, prevTree.el);
+            }
+          });
+
+          e();
+          return e;
+        };
+
+        const setupComponent = function (n2) {
+          if (n2.mounted) {
+            n2.mounted()
+          }
+          // 添加模板编译函数
+          n2.ctx = reactive(n2.data());
+          n2.render = function (isUpdate) {
+            // 这里是将template转化为vnode对象
+            // 假如结构如此
+            // <p>{{name}}</p>{{desc}}
+            const subTree = {
+              type: "fragment",
+              el: null,
+              children: [
+                {
+                  type: "element",
+                  el: null,
+                  tag: 'p',
+                  className: 'red',
+                  children: this.name,
+                },
+                {
+                  type: "text",
+                  el: null,
+                  children: this.desc,
+                },
+              ],
+            }
+            if (isUpdate) {
+              subTree.children[0].patchFlag = 1
+            }
+            return subTree;
+          };
+          return n2;
+        };
+
+        const mountComponent = function (n2, container) {
+          // 将数据可观测
+          const instance = setupComponent(n2);
+          // 这里添加副作用
+          setupRenderEffect(instance, container);
+        };
+
+        // 处理文本内容
+        const processText = function (n1, n2, container) {
+          if (n1 == null) {
+            n2.el = createTextNode(n2.children);
+            insert(n2.el, container);
+          } else {
+            const el = (n2.el = n1.el);
+            if (n2.children !== n1.children) {
+              el.textContent = n2.children;
+            }
+          }
+        };
+
+        const processComponent = function (n1, n2, container) {
+          if (n1 == null) {
+            mountComponent(n2, container);
+          } else {
+
+          }
+        };
+
+        const processFragment = function (n1, n2, container) {
+          if (n1 == null) {
+            for (let i = 0; i < n2.children.length; i++) {
+              const child = n2.children[i];
+              patch(null, child, container);
+            }
+          } else {
+            const oldChildren = n1.children
+            const newChildren = n2.children
+
+            for (let i = 0; i < newChildren.length; i++) {
+              const oldVNode = oldChildren[i];
+              const newVNode = newChildren[i];
+
+              patch(oldVNode, newVNode, container);
+            }
+          }
+        };
+
+        const processElement = function (n1, n2, container) {
+          if (n1 == null) {
+            n2.el = createElement(n2.tag);
+
+            n2.el.className = n2.className
+            n2.el.textContent = n2.children;
+            insert(n2.el, container);
+          } else {
+            const el = (n2.el = n1.el);
+
+            // 判断更新什么类型
+            switch(n2.patchFlag) {
+              case 1:
+                if (n1.children !== n2.children) {
+                  el.textContent = n2.children;
+                }
+                break;
+            }
+          }
+        };
+
+        const patch = function (n1, n2, container) {
+          const { type } = n2;
+           
+          if (n1) {
+            // 有个类型是否一直判断
+          }
+
+          switch (type) {
+            case "text":
+              processText(n1, n2, container);
+              break;
+            case "element":
+              processElement(n1, n2, container);
+              break;
+            case "fragment":
+              processFragment(n1, n2, container);
+              break;
+            case "component":
+              processComponent(n1, n2, container);
+              break;
+          }
+        };
+        return {
+          createApp: createAppAPI(render),
+        };
+      };
+
+      // 2、renderer是createRenderer函数返回的
+      const renderer = createRenderer({
+        querySelector(el) {
+          return document.querySelector(el);
+        },
+        createElement(tag) {
+          return document.createElement(tag);
+        },
+        insert(child, parent) {
+          return parent.appendChild(child);
+        },
+        createTextNode(text) {
+          return document.createTextNode(text);
+        },
+      });
+
+      // 1、声明createApp方法，createApp是render对象的方法
+      const Vue = {
+        createApp(options) {
+          return renderer.createApp(options);
+        },
+      };
+
+      Vue.createApp({
+        data() {
+          return {
+            name: "bill",
+            desc: "这是内容",
+          };
+        },
+        mounted() {
+          window.setInterval(() => {
+            this.ctx.name = '新的名字' + Date.now()
+            this.ctx.desc = '新的描述' + Date.now()
+          }, 1000)
+        }
+      }).mount("#app");
+    </script>
+  </body>
 </html>

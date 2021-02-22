@@ -478,3 +478,17 @@ function createAppAPI(render, hydrate) {
 3. set派发更新阶段：当我们 this[key] = value 改变属性的时候，首先通过trigger方法，通过proxy对象和key找到对应的deps，然后给deps分类分成computedRunners和effect,然后依次执行，如果需要调度的，直接放入调度。
 
 手写一个简单数据检测函数 详见：exmaple/demo4.html
+
+### vue3的虚拟dom渲染和diff过程
+
+1. createAppAPI => mount => createVNode 生成vnode，初步返回一个js对象结构，包含
+2. 开始渲染vnode，createAppAPI => mount => render
+3. 首次进入patch函数，通过container._vnode是否为空
+4. 通过vnode.shapeFlag为4，进入实例化组件processComponent => mountComponent
+5. mountComponent在setupComponent过程中，给instance添加渲染函数
+6. setupRenderEffect安装副作用函数
+7. renderComponentRoot 递归获取全局子树
+8. 再次执行patch，递归渲染这棵subtree
+9. 更新时，触发trigger => effect => patch
+
+详见：exmaple/demo5.html

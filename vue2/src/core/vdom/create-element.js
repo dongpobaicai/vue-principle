@@ -1,6 +1,30 @@
+/* @flow */
+
+import config from '../config'
+import VNode, { createEmptyVNode } from './vnode'
+import { createComponent } from './create-component'
+import { traverse } from '../observer/traverse'
+
+import {
+  warn,
+  isDef,
+  isUndef,
+  isTrue,
+  isObject,
+  isPrimitive,
+  resolveAsset
+} from '../util/index'
+
+import {
+  normalizeChildren,
+  simpleNormalizeChildren
+} from './helpers/index'
+
+const SIMPLE_NORMALIZE = 1
+const ALWAYS_NORMALIZE = 2
+
 // wrapper function for providing a more flexible interface
 // without getting yelled at by flow
-// createElement是对_createElement参数的封装
 export function createElement (
   context: Component,
   tag: any,
@@ -21,7 +45,7 @@ export function createElement (
 }
 
 export function _createElement (
-  context: Component, // 当前vnode上下文
+  context: Component,
   tag?: string | Class<Component> | Function | Object,
   data?: VNodeData,
   children?: any,
@@ -64,29 +88,31 @@ export function _createElement (
     children.length = 0
   }
   if (normalizationType === ALWAYS_NORMALIZE) {
-    // render函数是用户自己写的
     children = normalizeChildren(children)
   } else if (normalizationType === SIMPLE_NORMALIZE) {
-    // render函数是编译生成的
     children = simpleNormalizeChildren(children)
   }
-
-  // 创建虚拟node
   let vnode, ns
   if (typeof tag === 'string') {
     let Ctor
     ns = (context.$vnode && context.$vnode.ns) || config.getTagNamespace(tag)
     if (config.isReservedTag(tag)) {
-      // platform built-in elements  平台内置的一些标签
+      // platform built-in elements
+      if (process.env.NODE_ENV !== 'production' && isDef(data) && isDef(data.nativeOn) && data.tag !== 'component') {
+        warn(
+          `The .native modifier for v-on is only valid on components but it was used on <${tag}>.`,
+          context
+        )
+      }
       vnode = new VNode(
         config.parsePlatformTagName(tag), data, children,
         undefined, undefined, context
       )
-    } else if (isDef(Ctor = resolveAsset(context.$options, 'components', tag))) {
-      // component 组件
+    } else if ((!data || !data.pre) && isDef(Ctor = resolveAsset(context.$options, 'components', tag))) {
+      // component
       vnode = createComponent(Ctor, data, context, children, tag)
     } else {
-      // unknown or unlisted namespaced elements  未知标签
+      // unknown or unlisted namespaced elements
       // check at runtime because it may get assigned a namespace when its
       // parent normalizes children
       vnode = new VNode(
@@ -106,5 +132,35 @@ export function _createElement (
     return vnode
   } else {
     return createEmptyVNode()
+  }
+}
+
+function applyNS (vnode, ns, force) {
+  vnode.ns = ns
+  if (vnode.tag === 'foreignObject') {
+    // use default namespace inside foreignObject
+    ns = undefined
+    force = true
+  }
+  if (isDef(vnode.children)) {
+    for (let i = 0, l = vnode.children.length; i < l; i++) {
+      const child = vnode.children[i]
+      if (isDef(child.tag) && (
+        isUndef(child.ns) || (isTrue(force) && child.tag !== 'svg'))) {
+        applyNS(child, ns, force)
+      }
+    }
+  }
+}
+
+// ref #5318
+// necessary to ensure parent re-render when deep bindings like :style and
+// :class are used on slot nodes
+function registerDeepBindings (data) {
+  if (isObject(data.style)) {
+    traverse(data.style)
+  }
+  if (isObject(data.class)) {
+    traverse(data.class)
   }
 }

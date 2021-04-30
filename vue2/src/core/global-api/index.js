@@ -1,3 +1,5 @@
+/* @flow */
+
 import config from '../config'
 import { initUse } from './use'
 import { initMixin } from './mixin'
@@ -43,7 +45,12 @@ export function initGlobalAPI (Vue: GlobalAPI) {
   Vue.delete = del
   Vue.nextTick = nextTick
 
-  // vue实例属性
+  // 2.6 explicit observable API
+  Vue.observable = <T>(obj: T): T => {
+    observe(obj)
+    return obj
+  }
+
   Vue.options = Object.create(null)
   ASSET_TYPES.forEach(type => {
     Vue.options[type + 's'] = Object.create(null)
@@ -55,7 +62,7 @@ export function initGlobalAPI (Vue: GlobalAPI) {
 
   extend(Vue.options.components, builtInComponents)
 
-  initUse(Vue) // 设置Vue.use方法
+  initUse(Vue)
   initMixin(Vue)
   initExtend(Vue)
   initAssetRegisters(Vue)

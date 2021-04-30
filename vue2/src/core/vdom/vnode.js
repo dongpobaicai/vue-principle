@@ -1,4 +1,4 @@
-// 标签名 数据 子节点 键值
+/* @flow */
 
 export default class VNode {
   tag: string | void;
@@ -26,6 +26,7 @@ export default class VNode {
   ssrContext: Object | void;
   fnContext: Component | void; // real context vm for functional nodes
   fnOptions: ?ComponentOptions; // for SSR caching
+  devtoolsMeta: ?Object; // used to store functional render context for devtools
   fnScopeId: ?string; // functional scope id support
 
   constructor (
@@ -68,4 +69,45 @@ export default class VNode {
   get child (): Component | void {
     return this.componentInstance
   }
+}
+
+export const createEmptyVNode = (text: string = '') => {
+  const node = new VNode()
+  node.text = text
+  node.isComment = true
+  return node
+}
+
+export function createTextVNode (val: string | number) {
+  return new VNode(undefined, undefined, undefined, String(val))
+}
+
+// optimized shallow clone
+// used for static nodes and slot nodes because they may be reused across
+// multiple renders, cloning them avoids errors when DOM manipulations rely
+// on their elm reference.
+export function cloneVNode (vnode: VNode): VNode {
+  const cloned = new VNode(
+    vnode.tag,
+    vnode.data,
+    // #7975
+    // clone children array to avoid mutating original in case of cloning
+    // a child.
+    vnode.children && vnode.children.slice(),
+    vnode.text,
+    vnode.elm,
+    vnode.context,
+    vnode.componentOptions,
+    vnode.asyncFactory
+  )
+  cloned.ns = vnode.ns
+  cloned.isStatic = vnode.isStatic
+  cloned.key = vnode.key
+  cloned.isComment = vnode.isComment
+  cloned.fnContext = vnode.fnContext
+  cloned.fnOptions = vnode.fnOptions
+  cloned.fnScopeId = vnode.fnScopeId
+  cloned.asyncMeta = vnode.asyncMeta
+  cloned.isCloned = true
+  return cloned
 }
